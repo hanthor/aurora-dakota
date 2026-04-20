@@ -40,6 +40,22 @@ bst *ARGS:
         "{{bst2_image}}" \
         bash -c 'bst --colors "$@"' -- ${BST_FLAGS:-} {{ARGS}}
 
+# ── Build log ─────────────────────────────────────────────────────────
+# Run build in background, log to /var/tmp/aurora-build.log, tail it
+[group('build')]
+bst-build *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    LOG=/var/tmp/aurora-build.log
+    echo "=== Build started at $(date) ===" > "$LOG"
+    just bst build ${ARGS:-oci/aurora.bst} >> "$LOG" 2>&1 &
+    echo "BST PID: $! — tailing $LOG (Ctrl-C stops tail, build continues)"
+    tail -f "$LOG"
+
+[group('build')]
+log:
+    tail -f /var/tmp/aurora-build.log
+
 # ── Build ─────────────────────────────────────────────────────────────
 [group('build')]
 build:
