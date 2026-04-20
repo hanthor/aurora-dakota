@@ -4,7 +4,7 @@ description: Aurora KDE Linux OCI image
 build-depends:
   - kde-build-meta.bst:freedesktop-sdk.bst:components/fakecap.bst
   - kde-build-meta.bst:freedesktop-sdk.bst:components/oci-builder.bst
-  - freedesktop-sdk.bst:components/glib.bst
+  - kde-build-meta.bst:freedesktop-sdk.bst:components/glib.bst
   - kde-build-meta.bst:freedesktop-sdk.bst:vm/prepare-image.bst
   - filename: kde-build-meta.bst:oci/gnomeos/image.bst
     config:
@@ -19,6 +19,11 @@ environment:
 
 variables:
   sysroot-seed: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+  (?):
+  - arch == "x86_64":
+      go-arch: amd64
+  - arch == "aarch64":
+      go-arch: arm64
 
 config:
   commands:

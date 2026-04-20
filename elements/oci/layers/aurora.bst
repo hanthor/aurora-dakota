@@ -2,7 +2,7 @@ kind: compose
 description: Aurora final layer
 
 build-depends:
-  - freedesktop-sdk.bst:components/gcc.bst
+  - kde-build-meta.bst:freedesktop-sdk.bst:components/gcc.bst
   - oci/layers/aurora-runtime.bst
 
 config:

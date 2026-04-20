@@ -2,22 +2,11 @@ kind: junction
 description: Junction to hanthor/kde-build-meta (fork of gnome-build-meta with KDE Plasma)
 
 sources:
-- kind: git_repo
-  url: github:hanthor/kde-build-meta.git
-  track: master
-  ref: 344dd14d2bb3d953d7fcf075ce8023d4625fbb61
+- kind: tar
+  url: github:hanthor/kde-build-meta/archive/f4a360dc118a222dc636a356b6c47c906c7d041b.tar.gz
+  ref: aea3982602fe78a48d486542d6b2e0e50bacf137816bee6bf9d5c15706fdf01a
+  base-dir: kde-build-meta-f4a360dc118a222dc636a356b6c47c906c7d041b
 
 config:
   options:
     arch: "%{arch}"
-
-  # Override junctions from kde-build-meta so they use our local overrides
-  junction-overrides:
-  - target: freedesktop-sdk.bst
-    junction: freedesktop-sdk.bst
-  - target: plugins/buildstream-plugins.bst
-    junction: plugins/buildstream-plugins.bst
-  - target: plugins/buildstream-plugins-community.bst
-    junction: plugins/buildstream-plugins-community.bst
-  - target: oci/integration/os-release.bst
-    junction: oci/os-release.bst
