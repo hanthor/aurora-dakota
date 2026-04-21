@@ -68,9 +68,9 @@ config:
             'org.opencontainers.image.description': 'A KDE Plasma desktop image based on freedesktop-sdk'
             'org.opencontainers.image.vendor': 'Hanthor'
             'org.opencontainers.image.licenses': 'Apache-2.0'
-            'org.opencontainers.image.url': 'https://github.com/hanthor/aurora-dakota'
-            'org.opencontainers.image.source': 'https://github.com/hanthor/aurora-dakota'
+            'org.opencontainers.image.url': 'https://github.com/hanthor/tromso'
+            'org.opencontainers.image.source': 'https://github.com/hanthor/tromso'
             'containers.bootc': '1'
         index-annotations:
-          'org.opencontainers.image.ref.name': 'ghcr.io/hanthor/aurora-dakota:latest'
+          'org.opencontainers.image.ref.name': 'ghcr.io/hanthor/tromso:latest'
       EOF

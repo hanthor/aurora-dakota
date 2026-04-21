@@ -10,16 +10,16 @@ variables:
 environment:
   IMAGE_NAME: "aurora"
   IMAGE_VENDOR: "hanthor"
-  IMAGE_REF: "ostree-image-signed:docker://ghcr.io/hanthor/aurora-dakota"
+  IMAGE_REF: "ostree-image-signed:docker://ghcr.io/hanthor/tromso"
   IMAGE_FLAVOR: "main"
   IMAGE_TAG: "latest"
   VERSION_ID: "0"
   IMAGE_VERSION: "0"
   IMAGE_PRETTY_NAME: "Aurora"
-  HOME_URL: "https://github.com/hanthor/aurora-dakota"
-  DOCUMENTATION_URL: "https://github.com/hanthor/aurora-dakota"
-  SUPPORT_URL: "https://github.com/hanthor/aurora-dakota/issues"
-  BUG_SUPPORT_URL: "https://github.com/hanthor/aurora-dakota/issues"
+  HOME_URL: "https://github.com/hanthor/tromso"
+  DOCUMENTATION_URL: "https://github.com/hanthor/tromso"
+  SUPPORT_URL: "https://github.com/hanthor/tromso/issues"
+  BUG_SUPPORT_URL: "https://github.com/hanthor/tromso/issues"
   ID: "aurora"
 
 config:

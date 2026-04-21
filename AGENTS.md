@@ -3,7 +3,7 @@
 Aurora is a BuildStream-based KDE Linux OCI/bootc image, modeled on Project Bluefin's `projectbluefin/dakota`.
 It builds KDE Plasma 6 on top of freedesktop-sdk using two repos:
 
-- **`hanthor/aurora-dakota`** — top-level OCI project (this repo)
+- **`hanthor/tromso`** — top-level OCI project (this repo)
 - **`hanthor/kde-build-meta`** — KDE `.bst` elements (junctioned in)
 
 ---
@@ -26,7 +26,7 @@ tar tzf /tmp/kbm.tar.gz | head -1   # get base-dir
 
 # 3. Update elements/kde-build-meta.bst with new url, ref, base-dir
 
-# 4. Commit aurora-dakota
+# 4. Commit tromso
 cd /var/home/james/dev/kde-linux
 TMPDIR=/var/tmp git commit -m "Update junction to kde-build-meta ${SHA} (...)"
 ```
@@ -122,7 +122,7 @@ Pattern — if upstream `CMakeLists.txt` has `find_package(KF6Foo REQUIRED)`, th
 ## Repository Structure
 
 ```
-hanthor/aurora-dakota          (this repo)
+hanthor/tromso          (this repo)
 ├── elements/
 │   ├── kde-build-meta.bst     junction → hanthor/kde-build-meta
 │   └── oci/aurora.bst         top-level build target
