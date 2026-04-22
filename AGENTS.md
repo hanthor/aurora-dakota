@@ -76,9 +76,13 @@ disown
 
 4. **Clear the cached failure** (BST caches failed artifacts):
    ```bash
-   rm -rf ~/.cache/buildstream/artifacts/refs/gnome/kde-*
-   rm -rf ~/.cache/buildstream/logs/gnome/kde-*
+   # Clear ONLY the failed element to preserve cache for unrelated elements
+   rm -rf ~/.cache/buildstream/artifacts/refs/gnome/kde-CATEGORY-ELEMENT/
+   rm -rf ~/.cache/buildstream/logs/gnome/kde-CATEGORY-ELEMENT/
    ```
+   **⚠️ CRITICAL**: Never clear `kde-*` broadly — this forces rebuild of ALL KDE elements, not just the fix.
+   Example: `rm -rf ~/.cache/buildstream/artifacts/refs/gnome/kde-*` invalidates every element's cache unnecessarily.
+   Instead, clear only the specific element that failed (e.g., `kde-apps-kcalc`, `kde-frameworks-kxmlgui`, `kde-plasma-kwin`).
 
 5. Commit + push `kde-build-meta`, update junction, restart build.
 
