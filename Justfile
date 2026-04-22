@@ -96,6 +96,35 @@ dashboard-update:
         -o "${HOME}/.cache/bst-dashboard/bst-dashboard.py"
     echo "Done."
 
+# Install bst-dashboard as a systemd user service
+[group('build')]
+dashboard-service:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    JUSTDIR="{{justfile_directory()}}"
+    IMAGE_NAME="{{image_name}}"
+    SERVICE_FILE="${HOME}/.config/systemd/user/bst-dashboard.service"
+    mkdir -p "$(dirname "$SERVICE_FILE")"
+    printf '%s\n' \
+      '[Unit]' \
+      'Description=BuildStream Build Dashboard' \
+      'After=network.target' \
+      '' \
+      '[Service]' \
+      'Type=simple' \
+      'Environment=PYTHONUNBUFFERED=1' \
+      "ExecStart=/usr/bin/python3 ${JUSTDIR}/bst-dashboard.py --log /var/tmp/${IMAGE_NAME}-build.log --target oci/${IMAGE_NAME}.bst --project ${JUSTDIR}" \
+      'Restart=always' \
+      'RestartSec=5' \
+      '' \
+      '[Install]' \
+      'WantedBy=default.target' > "$SERVICE_FILE"
+    systemctl --user daemon-reload
+    systemctl --user enable bst-dashboard.service
+    systemctl --user restart bst-dashboard.service
+    sudo loginctl enable-linger $USER
+    echo "Dashboard service started and enabled (linger enabled)."
+
 # ── Build ─────────────────────────────────────────────────────────────
 [group('build')]
 build:
