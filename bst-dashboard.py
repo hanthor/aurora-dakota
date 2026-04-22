@@ -867,9 +867,17 @@ HTML = """<!DOCTYPE html>
   .tree-list details > summary { cursor: pointer; user-select: none; padding: 2px 0; border-radius: 3px; display: flex; align-items: center; gap: 4px; }
   .tree-list details > summary:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
   .tree-node-leaf { padding: 2px 0 2px 20px; display: flex; align-items: center; gap: 4px; }
-  .tree-nm { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-nm { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  .tree-nm:hover { text-decoration: underline; }
   .tree-nm.highlight { background: color-mix(in srgb, var(--yellow) 30%, transparent); border-radius: 3px; padding: 0 3px; }
+  .tree-nm.selected { background: color-mix(in srgb, var(--blue) 20%, transparent); color: var(--blue); border-radius: 3px; padding: 0 3px; }
   .tree-cnt { font-size: 10px; color: var(--muted); margin-left: 4px; flex-shrink: 0; }
+  /* Element info strip */
+  #tree-info { border-top: 1px solid var(--border); padding: 8px 14px; font-size: 11px; flex-shrink: 0; display: none; background: var(--bg); }
+  #tree-info .ti-name { font-weight: 600; color: var(--blue); }
+  #tree-info .ti-full { color: var(--muted); font-size: 10px; word-break: break-all; }
+  #tree-info .ti-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  #tree-info .ti-badge { font-size: 10px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); }
   /* SVG tree view */
   #svg-container { width: 100%; height: 100%; overflow: auto; }
   #svg-container svg { display: block; }
@@ -994,6 +1002,7 @@ HTML = """<!DOCTYPE html>
     </div>
     <div id="tree-search"><input type="search" id="tree-search-input" placeholder="Search elements…" oninput="filterTree(this.value)"></div>
     <div id="tree-body"><div id="tree-status" style="color:var(--muted)">Loading dependency tree…</div></div>
+    <div id="tree-info"></div>
   </div>
 </div>
 
@@ -1063,6 +1072,7 @@ async function poll() {
     if (!r.ok) { document.getElementById('lb-total').textContent = `API error: HTTP ${r.status}`; return; }
     const d = await r.json();
     lastVersion = d.version;
+    _lastBuildState = d;
 
     // Run/stop button
     const btn = document.getElementById('ctrl-btn');
@@ -1227,10 +1237,14 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Dependency tree modal ───────────────────────────────────────────────────
-let _treeData = null;       // {nodes, root}
-let _treeView = 'tree';     // 'tree' | 'graph'
-let _treeFilter = '';
+let _treeData     = null;   // {nodes, root}
+let _treeParents  = {};     // reverse adjacency: name -> [parents]
+let _treeSelected = null;   // currently selected element name
+let _treeView     = 'tree'; // 'tree' | 'graph'
+let _treeFilter   = '';
 let _treePollTimer = null;
+// Last known build state (for status badges in info panel)
+let _lastBuildState = null;
 
 function openTree() {
   document.getElementById('tree-modal').classList.add('open');
@@ -1251,9 +1265,62 @@ function filterTree(q) {
   if (_treeData) renderTree();
 }
 function refreshTree() {
-  _treeData = null;
+  _treeData = null; _treeParents = {}; _treeSelected = null;
+  document.getElementById('tree-info').style.display = 'none';
   fetch(new URL('api/deptree/refresh', document.baseURI), {method:'POST'});
   loadTree();
+}
+
+function _buildParents(nodes) {
+  const p = {};
+  for (const [name, deps] of Object.entries(nodes)) {
+    for (const dep of deps) { if (!p[dep]) p[dep] = []; p[dep].push(name); }
+  }
+  return p;
+}
+
+function _selectNode(name) {
+  _treeSelected = name;
+  // Update highlight in collapsible tree
+  document.querySelectorAll('#tree-body .tree-nm.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll(`#tree-body .tree-nm[data-n]`).forEach(el => {
+    if (el.dataset.n === name) el.classList.add('selected');
+  });
+  _updateInfoPanel();
+  if (_treeView === 'graph') renderGraphTree();
+}
+
+function _statusOf(name) {
+  if (!_lastBuildState) return null;
+  const short = name.split(':').pop(); // strip junction prefix
+  const d = _lastBuildState;
+  if (d.active && d.active.some(j => j.element === short)) return 'active';
+  if (d.failures && d.failures.some(f => f.element === short)) return 'failure';
+  if (d.completed && d.completed.some(c => c.element === short && c.status === 'success')) return 'success';
+  return null;
+}
+
+function _updateInfoPanel() {
+  const el = document.getElementById('tree-info');
+  if (!_treeSelected || !_treeData) { el.style.display = 'none'; return; }
+  const name = _treeSelected;
+  const deps = _treeData.nodes[name] || [];
+  const parents = _treeParents[name] || [];
+  const status = _statusOf(name);
+  const statusBadge = status === 'active'  ? `<span class="ti-badge" style="color:var(--blue);border-color:var(--blue)">⚡ building</span>`
+                    : status === 'success' ? `<span class="ti-badge" style="color:var(--green);border-color:var(--green)">✓ built</span>`
+                    : status === 'failure' ? `<span class="ti-badge" style="color:var(--red);border-color:var(--red)">✗ failed</span>`
+                    : '';
+  el.style.display = '';
+  el.innerHTML =
+    `<div class="ti-name">${_shortName(name)}</div>` +
+    `<div class="ti-full">${_escAttr(name)}</div>` +
+    `<div class="ti-badges">` +
+    `<span class="ti-badge">${deps.length} dep${deps.length!==1?'s':''}</span>` +
+    `<span class="ti-badge">${parents.length} needed by</span>` +
+    statusBadge +
+    (parents.length ? `<span class="ti-badge" style="cursor:pointer" onclick="_selectNode(${JSON.stringify(parents[0])})" title="First parent">↑ ${_shortName(parents[0])}</span>` : '') +
+    `</div>`;
 }
 
 async function loadTree() {
@@ -1270,6 +1337,7 @@ async function _pollTree() {
     if (d.status === 'ready') {
       clearInterval(_treePollTimer); _treePollTimer = null;
       _treeData = d;
+      _treeParents = _buildParents(d.nodes);
       renderTree();
     } else if (d.status === 'error') {
       clearInterval(_treePollTimer); _treePollTimer = null;
@@ -1308,13 +1376,16 @@ function _buildShallowNode(name, ancestors) {
   const q = _treeFilter;
   const deps = (nodes[name] || []).filter(d => !ancestors.has(d));
   const display = _shortName(name);
-  const hlClass = q && name.toLowerCase().includes(q) ? ' highlight' : '';
+  const selClass = name === _treeSelected ? ' selected' : '';
+  const hlClass  = (q && name.toLowerCase().includes(q) ? ' highlight' : '') + selClass;
   const safe = _escAttr(name);
+  const jname = JSON.stringify(name);
+  const nmSpan = `<span class="tree-nm${hlClass}" data-n="${safe}" title="${safe}" onclick="event.stopPropagation();_selectNode(${jname})">${display}</span>`;
   if (deps.length === 0) {
-    return `<li><div class="tree-node-leaf"><span class="tree-nm${hlClass}" title="${safe}">${display}</span></div></li>`;
+    return `<li><div class="tree-node-leaf">${nmSpan}</div></li>`;
   }
   return `<li><details data-node="${safe}"><summary>` +
-    `<span class="tree-nm${hlClass}" title="${safe}">${display}</span>` +
+    nmSpan +
     `<span class="tree-cnt">(${deps.length})</span></summary>` +
     `<ul class="tree-list" data-lazy="${safe}"></ul></details></li>`;
 }
@@ -1352,11 +1423,13 @@ function renderCollapsibleTree() {
     const rootDeps = (nodes[root] || []);
     const rootDisplay = _shortName(root);
     const safe = _escAttr(root);
+    const jroot = JSON.stringify(root).replace(/</g, '\\u003c');
+    const rootSelClass = root === _treeSelected ? ' selected' : '';
     const childrenHtml = rootDeps.map(d => _buildShallowNode(d, new Set([root]))).join('');
     body.innerHTML =
       `<ul class="tree-list root"><li>` +
       `<details data-node="${safe}" open><summary>` +
-      `<span class="tree-nm" title="${safe}">${rootDisplay}</span>` +
+      `<span class="tree-nm${rootSelClass}" data-n="${safe}" title="${safe}" onclick="event.stopPropagation();_selectNode(${jroot})">${rootDisplay}</span>` +
       `<span class="tree-cnt">(${rootDeps.length})</span></summary>` +
       `<ul class="tree-list">${childrenHtml}</ul>` +
       `</details></li></ul>`;
@@ -1377,76 +1450,83 @@ function renderCollapsibleTree() {
     `<ul class="tree-list root">` +
     shown.map(name => {
       const safe = _escAttr(name);
+      const jname = JSON.stringify(name).replace(/</g, '\\u003c');
       const deps = (nodes[name] || []);
-      return `<li><div class="tree-node-leaf" style="flex-direction:column;align-items:flex-start">` +
-        `<span class="tree-nm highlight" title="${safe}">${_shortName(name)}</span>` +
-        `<span style="font-size:10px;color:var(--muted)">${safe}</span>` +
-        (deps.length ? `<span class="tree-cnt">${deps.length} dep${deps.length>1?'s':''}</span>` : '') +
+      const selClass = name === _treeSelected ? ' selected' : '';
+      return `<li><div class="tree-node-leaf" style="flex-direction:column;align-items:flex-start;cursor:pointer" onclick="_selectNode(${jname})">` +
+        `<span class="tree-nm highlight${selClass}" data-n="${safe}" title="${safe}">${_shortName(name)}</span>` +
+        `<span style="font-size:10px;color:var(--muted);pointer-events:none">${safe}</span>` +
+        (deps.length ? `<span class="tree-cnt" style="pointer-events:none">${deps.length} dep${deps.length>1?'s':''}</span>` : '') +
         `</div></li>`;
     }).join('') +
     `</ul>${more}`;
 }
 
-// ── SVG family-tree view — root + 2 levels only ───────────────────────────
-// Rendering the full 900+ node tree in SVG is too heavy. We show the root,
-// its direct children, and their children (depth ≤ 2).
+// ── SVG family-tree view — focused subgraph ───────────────────────────────
+// Shows the immediate neighbourhood of the selected element:
+//   row 0: parents (who depend on it)      [yellow]
+//   row 1: selected element                [blue]
+//   row 2: direct deps (children)          [normal]
+//   row 3: deps of deps (grandchildren)    [muted]
+// Click a node in the Collapsible view first to focus here.
 function renderGraphTree() {
-  const { nodes, root } = _treeData;
-  const NODE_W = 160, NODE_H = 34, H_GAP = 14, V_GAP = 56;
-  const MAX_DEPTH = 2;
+  const body = document.getElementById('tree-body');
+  if (!_treeSelected) {
+    body.innerHTML = `<div id="tree-status">` +
+      `Click any element in the <strong>Collapsible</strong> view to explore its dependency graph here.</div>`;
+    return;
+  }
 
-  // BFS limited to MAX_DEPTH
-  const depth = {[root]: 0}, children = {}, order = [root];
-  const visited = new Set([root]);
-  const queue = [root];
-  while (queue.length) {
-    const name = queue.shift();
-    const d = depth[name];
-    const deps = (nodes[name] || []).filter(n => !visited.has(n));
-    if (d < MAX_DEPTH) {
-      children[name] = deps;
-      for (const dep of deps) {
-        visited.add(dep); depth[dep] = d + 1; order.push(dep);
-        queue.push(dep);
-      }
-    } else {
-      children[name] = [];   // truncate deeper deps
+  const { nodes } = _treeData;
+  const sel = _treeSelected;
+  const NODE_W = 164, NODE_H = 36, H_GAP = 12, V_GAP = 54;
+  const MAX_PARENTS = 12, MAX_CHILDREN = 20, MAX_GRANDCHILDREN = 4;
+
+  const parents     = (_treeParents[sel] || []).slice(0, MAX_PARENTS);
+  const children    = (nodes[sel] || []).slice(0, MAX_CHILDREN);
+  // Grandchildren: up to MAX_GRANDCHILDREN per child, deduped
+  const gcSeen = new Set([sel, ...parents, ...children]);
+  const grandchildren = [];
+  for (const c of children) {
+    for (const gc of (nodes[c] || []).slice(0, MAX_GRANDCHILDREN)) {
+      if (!gcSeen.has(gc)) { gcSeen.add(gc); grandchildren.push(gc); }
     }
   }
 
-  // Subtree width (leaf = 1, else sum of children)
-  const _wCache = {};
-  function subtreeW(name) {
-    if (_wCache[name] !== undefined) return _wCache[name];
-    const ch = children[name] || [];
-    const w = ch.length === 0 ? 1 : ch.reduce((s, c) => s + subtreeW(c), 0);
-    return (_wCache[name] = w);
-  }
+  // Levels: parents→0, sel→1, children→2, grandchildren→3
+  const level = {[sel]: 1};
+  parents.forEach(n => level[n] = 0);
+  children.forEach(n => level[n] = 2);
+  grandchildren.forEach(n => level[n] = 3);
 
-  const pos = {}, edges = [];
-  function layout(name, x) {
-    pos[name] = { x, y: depth[name] * (NODE_H + V_GAP) };
-    const ch = children[name] || [];
-    if (!ch.length) return;
-    const totalW = ch.reduce((s, c) => s + subtreeW(c), 0);
-    let cx = x - totalW * (NODE_W + H_GAP) / 2;
-    for (const c of ch) {
-      const cw = subtreeW(c);
-      layout(c, cx + cw * (NODE_W + H_GAP) / 2 - (NODE_W + H_GAP) / 2 + NODE_W / 2);
-      edges.push([name, c]);
-      cx += cw * (NODE_W + H_GAP);
+  // Edges
+  const edges = [];
+  parents.forEach(p => edges.push([p, sel, 'parent']));
+  children.forEach(c => edges.push([sel, c, 'child']));
+  for (const c of children) {
+    for (const gc of (nodes[c] || []).slice(0, MAX_GRANDCHILDREN)) {
+      if (level[gc] === 3) edges.push([c, gc, 'gc']);
     }
   }
-  layout(root, 0);
 
-  const xs = Object.values(pos).map(p => p.x);
-  const ys = Object.values(pos).map(p => p.y);
-  const minX = Math.min(...xs) - NODE_W / 2;
-  const maxX = Math.max(...xs) + NODE_W / 2;
-  const PAD = 20;
-  const svgW = Math.max(600, maxX - minX + PAD * 2);
-  const svgH = Math.max(200, Math.max(...ys) + NODE_H + PAD * 2);
-  const ox = -minX + PAD, oy = PAD;
+  // Position each row: evenly spaced horizontally, centred on sel
+  function rowX(names) {
+    const n = names.length;
+    return names.map((_, i) => (i - (n - 1) / 2) * (NODE_W + H_GAP));
+  }
+  const pos = {};
+  const rows = [parents, [sel], children, grandchildren];
+  rows.forEach((row, ri) => {
+    const xs = rowX(row);
+    row.forEach((name, i) => pos[name] = { x: xs[i], y: ri * (NODE_H + V_GAP) });
+  });
+
+  // SVG bounds
+  const allX = Object.values(pos).map(p => p.x);
+  const PAD = 24;
+  const svgW = Math.max(500, Math.max(...allX) - Math.min(...allX) + NODE_W + PAD * 2);
+  const svgH = (rows.length) * (NODE_H + V_GAP) + PAD * 2;
+  const ox = svgW / 2, oy = PAD;
 
   const cs = getComputedStyle(document.documentElement);
   const cBorder  = cs.getPropertyValue('--border').trim();
@@ -1455,30 +1535,68 @@ function renderGraphTree() {
   const cBlue    = cs.getPropertyValue('--blue').trim();
   const cMuted   = cs.getPropertyValue('--muted').trim();
   const cYellow  = cs.getPropertyValue('--yellow').trim();
+  const cGreen   = cs.getPropertyValue('--green').trim();
+  const cRed     = cs.getPropertyValue('--red').trim();
 
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}">`;
+  function nodeColor(name) {
+    const s = _statusOf(name);
+    return s === 'active' ? cBlue : s === 'success' ? cGreen : s === 'failure' ? cRed : cBorder;
+  }
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" style="font-family:monospace">`;
+
+  // Row labels
+  const labels = ['needed by', '', 'depends on', 'dep of dep'];
+  rows.forEach((row, ri) => {
+    if (!row.length || ri === 1) return;
+    const ry = ri * (NODE_H + V_GAP) + oy + NODE_H / 2 + 4;
+    const lx = svgW - 4;
+    svg += `<text x="${lx}" y="${ry}" text-anchor="end" fill="${cMuted}" font-size="9">${labels[ri]} (${row.length})</text>`;
+  });
+
+  // Edges
   for (const [a, b] of edges) {
+    if (!pos[a] || !pos[b]) continue;
     const x1 = pos[a].x + ox, y1 = pos[a].y + oy + NODE_H;
     const x2 = pos[b].x + ox, y2 = pos[b].y + oy;
     const my = (y1 + y2) / 2;
-    svg += `<path d="M${x1} ${y1} C${x1} ${my},${x2} ${my},${x2} ${y2}" fill="none" stroke="${cBorder}" stroke-width="1.5"/>`;
+    svg += `<path d="M${x1} ${y1} C${x1} ${my},${x2} ${my},${x2} ${y2}" fill="none" stroke="${cBorder}" stroke-width="1.2" opacity="0.7"/>`;
   }
-  for (const name of order) {
-    const { x, y } = pos[name];
-    const rx = x + ox - NODE_W / 2, ry = y + oy;
-    const isRoot = name === root;
-    const hasMore = depth[name] === MAX_DEPTH && (nodes[name] || []).length > 0;
-    const stroke = isRoot ? cBlue : hasMore ? cYellow : cBorder;
-    const sw = isRoot || hasMore ? 2 : 1;
-    const display = _shortName(name);
-    const trunc = display.length > 22 ? display.slice(0, 20) + '…' : display;
-    svg += `<rect x="${rx}" y="${ry}" width="${NODE_W}" height="${NODE_H}" rx="5" fill="${cSurface}" stroke="${stroke}" stroke-width="${sw}"/>`;
-    svg += `<text x="${rx + NODE_W/2}" y="${ry + NODE_H/2 + 4}" text-anchor="middle" fill="${isRoot ? cBlue : cText}" font-size="10" font-family="monospace">${trunc}</text>`;
-  }
-  svg += `<text x="8" y="${svgH - 6}" fill="${cMuted}" font-size="9">Showing ${order.length} nodes (depth ≤ ${MAX_DEPTH}). Use Collapsible view to explore deeper.</text>`;
-  svg += '</svg>';
 
-  document.getElementById('tree-body').innerHTML = `<div id="svg-container">${svg}</div>`;
+  // Nodes — use data-name for click binding (avoid inline onclick escaping issues)
+  const nodeNames = [];
+  for (const [name, {x, y}] of Object.entries(pos)) {
+    const idx = nodeNames.length;
+    nodeNames.push(name);
+    const rx = x + ox - NODE_W / 2, ry = y + oy;
+    const isSel = name === sel;
+    const stroke = isSel ? cBlue : nodeColor(name);
+    const sw = isSel ? 2.5 : 1.2;
+    // SVG fill can't use color-mix() — use a plain color for selection
+    const fill = isSel ? (document.documentElement.dataset.theme === 'light' ? '#dbeafe' : '#1e3a5f') : cSurface;
+    const textColor = isSel ? cBlue : cText;
+    const display = _shortName(name);
+    const trunc = display.length > 21 ? display.slice(0, 19) + '…' : display;
+    svg += `<g class="svg-nd" data-idx="${idx}" style="cursor:pointer">` +
+      `<rect x="${rx}" y="${ry}" width="${NODE_W}" height="${NODE_H}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>` +
+      `<text x="${rx + NODE_W/2}" y="${ry + NODE_H/2 + 4}" text-anchor="middle" fill="${textColor}" font-size="10">${trunc}</text>` +
+      `</g>`;
+  }
+
+  // Truncation notes
+  const pMore = (_treeParents[sel] || []).length - parents.length;
+  const cMore = (nodes[sel] || []).length - children.length;
+  if (pMore > 0) svg += `<text x="${svgW/2}" y="${oy - 6}" text-anchor="middle" fill="${cMuted}" font-size="9">+${pMore} more parents not shown</text>`;
+  if (cMore > 0) svg += `<text x="${svgW/2}" y="${svgH - 4}" text-anchor="middle" fill="${cMuted}" font-size="9">+${cMore} more deps not shown</text>`;
+
+  svg += '</svg>';
+  body.innerHTML = `<div id="svg-container">${svg}</div>`;
+
+  // Wire click/tap handlers after DOM insertion
+  body.querySelectorAll('.svg-nd').forEach(el => {
+    const name = nodeNames[parseInt(el.dataset.idx)];
+    el.addEventListener('click', () => _selectNode(name));
+  });
 }
 
 document.getElementById('tree-modal').addEventListener('click', e => {
@@ -1488,6 +1606,8 @@ document.getElementById('tree-modal').addEventListener('click', e => {
 async function toggleBuild() {
   const btn = document.getElementById('ctrl-btn');
   const running = btn.textContent.includes('Stop');
+  const msg = running ? 'Stop the running build?' : 'Start a new build?';
+  if (!confirm(msg)) return;
   btn.disabled = true;
   try {
     await fetch(new URL(running ? 'api/stop' : 'api/start', document.baseURI), {method: 'POST'});
