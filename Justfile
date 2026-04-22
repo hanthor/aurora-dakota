@@ -73,17 +73,17 @@ dashboard:
     python3 "$SCRIPT" \
         --log /var/tmp/aurora-build.log \
         --target oci/aurora.bst \
-        --project "{{justfile_directory()}}" &
-    PID=$!
-    # Wait for the server to accept connections then open the browser
+        --project "{{justfile_directory()}}" &>/tmp/bst-dashboard.log &
+    disown
+    echo "Dashboard starting (log: /tmp/bst-dashboard.log)"
     for i in $(seq 1 20); do
         sleep 0.3
         if curl -sf http://localhost:8765/ > /dev/null 2>&1; then
+            echo "Dashboard ready at http://localhost:8765/"
             xdg-open http://localhost:8765/ 2>/dev/null || true
             break
         fi
     done
-    wait $PID
 
 # Pull the latest bst-dashboard from GitHub
 [group('build')]
