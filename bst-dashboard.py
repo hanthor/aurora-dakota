@@ -964,6 +964,7 @@ HTML = """<!DOCTYPE html>
     <div class="stat"><span class="stat-val"       id="s-time">0s</span><span class="stat-lbl">Elapsed</span></div>
   </div>
   <button id="tree-btn" onclick="openTree()" title="Dependency tree" style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:13px;color:var(--muted)">🌳</button>
+  <button id="noti-btn" onclick="toggleNotifications()" title="Toggle notifications" style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:13px;color:var(--muted)">🔔</button>
   <button id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark">◐</button>
   <button id="ctrl-btn" onclick="toggleBuild()" style="color:var(--muted);border-color:var(--border)">…</button>
 </header>
@@ -1083,6 +1084,37 @@ function toggleCores() {
 let lastVersion = -1;
 let autoScroll = true;
 let _showCores = false;
+let _lastLive = null;
+let _notificationsEnabled = localStorage.getItem('bst-notifications') === 'true';
+
+function updateNotiBtn() {
+  const btn = document.getElementById('noti-btn');
+  if (Notification.permission === 'denied') {
+    btn.style.opacity = '0.3';
+    btn.title = 'Notifications blocked by browser';
+  } else {
+    btn.style.color = _notificationsEnabled ? 'var(--blue)' : 'var(--muted)';
+    btn.style.borderColor = _notificationsEnabled ? 'var(--blue)' : 'var(--border)';
+    btn.title = _notificationsEnabled ? 'Notifications enabled' : 'Notifications disabled (click to enable)';
+  }
+}
+
+async function toggleNotifications() {
+  if (Notification.permission === 'default') {
+    const res = await Notification.requestPermission();
+    if (res !== 'granted') { updateNotiBtn(); return; }
+  }
+  _notificationsEnabled = !_notificationsEnabled;
+  localStorage.setItem('bst-notifications', _notificationsEnabled);
+  updateNotiBtn();
+}
+
+function showBuildNotification(d) {
+  if (!_notificationsEnabled || Notification.permission !== 'granted' || document.visibilityState === 'visible') return;
+  const title = d.failure > 0 ? 'Build Failed ❌' : 'Build Complete ✓';
+  const body = `${d.success} built, ${d.failure} failed, ${d.cached} cached.\nElapsed: ${fmtElapsed(d.elapsed)}`;
+  new Notification(title, { body, icon: '/favicon.ico' });
+}
 // Resolve API URL relative to where this page is hosted (works under any path prefix)
 const API_URL = new URL('api/state', document.baseURI).href;
 
@@ -1124,6 +1156,12 @@ async function poll() {
     const d = await r.json();
     lastVersion = d.version;
     _lastBuildState = d;
+
+    // Trigger notification on completion
+    if (_lastLive === true && d.live === false && !d.catching_up) {
+      showBuildNotification(d);
+    }
+    _lastLive = d.live;
 
     // Run/stop button
     const btn = document.getElementById('ctrl-btn');
@@ -1685,6 +1723,7 @@ async function toggleBuild() {
 
 poll();
 setInterval(poll, 800);
+updateNotiBtn();
 </script>
 </body>
 </html>
