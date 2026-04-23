@@ -15,9 +15,6 @@ depends:
   - kde-build-meta.bst:kde/apps/kcalc.bst             # Calculator
   - kde-build-meta.bst:kde/apps/kdeconnect.bst        # Device connectivity
 
-  # KDE configuration tools
-  - kde-build-meta.bst:kde/plasma/systemsettings.bst
-
   # Developer tools (via gnome-build-meta for freedesktop-sdk components)
   - kde-build-meta.bst:freedesktop-sdk.bst:components/buildstream2.bst
   - kde-build-meta.bst:freedesktop-sdk.bst:components/containers-common.bst
@@ -36,3 +33,5 @@ depends:
   # Utilities
   - kde-build-meta.bst:gnomeos-deps/just.bst
   - kde-build-meta.bst:gnomeos-deps/wl-clipboard.bst
+
+  # TODO: Add systemsettings back after fixing plasma-activities dependency order
