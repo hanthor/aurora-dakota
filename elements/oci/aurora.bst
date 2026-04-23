@@ -28,6 +28,10 @@ variables:
 config:
   commands:
     - mkdir /fakecap
+    # Clean up /lib/modules entirely - depmod will rebuild what it needs
+    - |
+      rm -rf /layer/lib/modules
+      mkdir -p /layer/lib/modules
     - |
       prepare-image.sh \
          --sysroot /layer \
