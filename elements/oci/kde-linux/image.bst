@@ -19,6 +19,11 @@ environment:
 
 variables:
   sysroot-seed: b57666f6-0fe5-4310-adff-f256936d164d
+  (?):
+  - arch == "x86_64":
+      go-arch: amd64
+  - arch == "aarch64":
+      go-arch: arm64
 
 config:
   commands:

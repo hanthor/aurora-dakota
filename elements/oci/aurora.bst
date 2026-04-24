@@ -6,9 +6,6 @@ build-depends:
   - kde-build-meta.bst:freedesktop-sdk.bst:components/oci-builder.bst
   - kde-build-meta.bst:freedesktop-sdk.bst:components/glib.bst
   - kde-build-meta.bst:freedesktop-sdk.bst:vm/prepare-image.bst
-  - filename: oci/kde-linux/image.bst
-    config:
-      location: /parent
   - filename: oci/layers/aurora.bst
     config:
       location: /layer
@@ -61,10 +58,8 @@ config:
       images:
       - os: linux
         architecture: "%{go-arch}"
-        parent:
-          image: /parent
         layer: /layer
-        comment: "Aurora KDE Linux image"
+        comment: "Aurora KDE Linux image (no parent)"
         config:
           Labels:
             'com.github.containers.toolbox': 'true'
