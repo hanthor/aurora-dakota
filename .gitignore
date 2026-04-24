@@ -1,2 +1,10 @@
 org.kde.plasma/
 .bst/
+*.raw
+*.iso
+*.tar.zst
+.ovmf-vars.fd
+AURORA_VM_USAGE.sh
+copilot-session-*.md
+files/
+*.tsv
