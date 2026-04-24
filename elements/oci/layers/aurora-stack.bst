@@ -13,6 +13,9 @@ depends:
   - kde-build-meta.bst:freedesktop-sdk.bst:components/linux-firmware.bst
   - kde-build-meta.bst:oci/initramfs.bst
 
+  # bootc: Removed to avoid DNS/Cargo build failures in nested sandboxes
+  # Will be installed post-build or sourced from system package manager
+
 public:
   bst:
     integration-commands:
