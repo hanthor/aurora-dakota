@@ -173,23 +173,27 @@ clean:
 generate-bootable-image $base_dir=base_dir $filesystem=filesystem:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! sudo podman image exists "{{image_name}}:{{image_tag}}"; then
+    if ! podman image exists "{{image_name}}:{{image_tag}}"; then
         echo "ERROR: Image '{{image_name}}:{{image_tag}}' not found. Run 'just build' first." >&2
         exit 1
     fi
     if [ ! -e "${base_dir}/bootable.raw" ]; then
         fallocate -l 30G "${base_dir}/bootable.raw"
     fi
-    just bootc install to-disk \
-        --via-loopback /data/bootable.raw \
-        --filesystem "${filesystem}" \
-        --wipe \
-        --composefs-backend \
-        --bootloader systemd \
-        --karg systemd.firstboot=no \
-        --karg splash \
-        --karg quiet \
-        --karg console=tty0
+    echo "==> Installing Aurora to disk via bootc (in container)..."
+    # Copy image to root storage so sudo podman can access it
+    podman save "{{image_name}}:{{image_tag}}" | sudo podman load >/dev/null 2>&1 || true
+    DISK=$(realpath "${base_dir}/bootable.raw")
+    sudo podman run --rm --privileged --pid=host \
+        -v "$DISK:$DISK:rw" \
+        -v /dev:/dev \
+        --security-opt label=type:unconfined_t \
+        "{{image_name}}:{{image_tag}}" \
+        bootc install to-disk \
+            --via-loopback "$DISK" \
+            --filesystem "{{filesystem}}" \
+            --wipe \
+            --bootloader systemd
     sync
     rm -f "${base_dir}/bootable.qcow2"
 
@@ -228,12 +232,15 @@ boot-vm $base_dir=base_dir:
             if [ -f "$candidate" ]; then cp "$candidate" "$OVMF_VARS"; break; fi
         done
     fi
+    echo "==> Booting Aurora via QEMU with VNC (127.0.0.1:5900)..."
+    echo "    SSH: ssh -p 2222 root@127.0.0.1 (if ready)"
     qemu-system-x86_64 \
         -enable-kvm -m "{{vm_ram}}" -cpu host -smp "{{vm_cpus}}" \
         -drive file="${DISK}",format=raw,if=virtio \
         -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" \
         -drive if=pflash,format=raw,file="${OVMF_VARS}" \
-        -device virtio-vga -display gtk \
+        -device virtio-vga -display vnc=127.0.0.1:0 \
         -device virtio-keyboard -device virtio-mouse \
         -device virtio-net-pci,netdev=net0 \
-        -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22
+        -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22 \
+        -serial mon:stdio
