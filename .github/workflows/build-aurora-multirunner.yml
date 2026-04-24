@@ -90,7 +90,7 @@ jobs:
       BUILD_IMAGE_NAME: aurora
     steps:
       - name: Free disk space
-        uses: ublue-os/remove-unwanted-software@v10
+        uses: ublue-os/remove-unwanted-software@v9
         continue-on-error: true
 
       - uses: actions/checkout@v4
@@ -184,7 +184,7 @@ jobs:
     name: Build ${{ matrix.chunk }}
     steps:
       - name: Free disk space
-        uses: ublue-os/remove-unwanted-software@v10
+        uses: ublue-os/remove-unwanted-software@v9
         continue-on-error: true
 
       - uses: actions/checkout@v4
@@ -316,7 +316,7 @@ jobs:
       BUILD_IMAGE_NAME: aurora
     steps:
       - name: Free disk space
-        uses: ublue-os/remove-unwanted-software@v10
+        uses: ublue-os/remove-unwanted-software@v9
         continue-on-error: true
 
       - uses: actions/checkout@v4
